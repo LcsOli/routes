@@ -1,0 +1,27 @@
+server:
+  port: 8080
+
+spring:
+  datasource:
+    # Substitua pelos dados reais do seu servidor de banco de dados Oracle
+    url: ${DB_URL:jdbc:oracle:thin:@192.168.10.132:1521:WINT}
+    username: ${DB_USER:COMPREFACIL}
+    password: ${DB_PASS:COMP14WINT22}
+    driver-class-name: oracle.jdbc.OracleDriver
+  jpa:
+    database-platform: org.hibernate.dialect.OracleDialect
+    hibernate:
+      ddl-auto: none
+    show-sql: true
+    properties:
+      hibernate.format_sql: true
+
+# Configurações específicas da API Concept (Parametrizadas)
+concept:
+  api:
+    cnpj: ${CONCEPT_CNPJ:05.955.701/0001-06}
+    senhaCliente: ${CONCEPT_SENHA_CLIENTE:35bb1a5edbb7764fe892a94a3ddf89308a84e05d1262030c5c3556b3}
+    senhaCentral: ${CONCEPT_SENHA_CENTRAL:c0939390dafe35214cffda8774aeb91b0135639ae71d06887a9357d9}
+    endpoints:
+      automatizador: "http://52.6.27.50:8181/automatizador"
+      importador: "http://52.6.27.50:8181/importadorPedidos"
