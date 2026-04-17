@@ -36,6 +36,30 @@ public class ConceptSoapClient {
         enviarRequest(config.getEndpoints().getAutomatizador(), xml, "cadastrarZona");
     }
 
+    public void cadastrarLoja(String codigo, String nome) {
+        String lat = "-20.797732132339135";
+        String lng = "-49.32830021380005";
+
+        String xml = """
+            <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:fac="http://fachada.concept/">
+               <soapenv:Body>
+                  <fac:cadastrarLoja>
+                     <arg0>
+                        <id>0</id>
+                        <codigoLoja>%s</codigoLoja>
+                        <nome>%s</nome>
+                        <latitude>%s</latitude>
+                        <longitude>%s</longitude>
+                        <raio>500</raio>
+                     </arg0>
+                     <arg1>%s</arg1><arg2>%s</arg2><arg3>%s</arg3>
+                  </fac:cadastrarLoja>
+               </soapenv:Body>
+            </soapenv:Envelope>
+            """.formatted(codigo, mapper.escapeXml(nome), lat, lng, config.getCnpj(), config.getSenhaCliente(), config.getSenhaCentral());
+        enviarRequest(config.getEndpoints().getAutomatizador(), xml, "cadastrarLoja");
+    }
+
     public void cadastrarMotorista(String matricula, String nome, String cpf) {
         String xml = """
             <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:fac="http://fachada.concept/">
@@ -69,7 +93,6 @@ public class ConceptSoapClient {
     }
 
     public void roteirizarPedidos(Long numCar, String placa, String motorista) {
-        // Data no formato ISO (Ex: 2026-04-15T00:00:00-03:00) exigido para sucesso
         String dataIso = OffsetDateTime.now().withHour(0).withMinute(0).withSecond(0).withNano(0)
                 .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
         
@@ -98,7 +121,6 @@ public class ConceptSoapClient {
     }
 
     private void enviarRequest(String url, String xmlBody, String operacao) {
-        // Configuração de Timeout (5s conexão, 30s leitura)
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(5000);
         factory.setReadTimeout(30000);

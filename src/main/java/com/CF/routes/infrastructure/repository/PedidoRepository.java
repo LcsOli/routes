@@ -116,17 +116,14 @@ public class PedidoRepository {
         ).collect(Collectors.toList());
     }
 
-    /**
-     * Atualiza o status de importação na PCCARREG.
-     */
     @Transactional
     public void marcarComoImportado(Long numcar) {
-        String sql = "UPDATE PCCARREG SET IMPORTADOAPI = 'S' WHERE NUMCAR = ?";
+        String sql = "UPDATE PCCARREG SET IMPORTADOAPI = 'S', DATAIMPORTADOAPI = SYSDATE WHERE NUMCAR = ?";
         try {
             entityManager.createNativeQuery(sql)
                     .setParameter(1, numcar)
                     .executeUpdate();
-            log.info("Carregamento {} atualizado: IMPORTADOAPI='S'.", numcar);
+            log.info("Carregamento {} atualizado: IMPORTADOAPI='S' e DATAIMPORTADOAPI registrada.", numcar);
         } catch (Exception e) {
             log.error("Erro ao atualizar IMPORTADOAPI na PCCARREG: {}", e.getMessage());
         }

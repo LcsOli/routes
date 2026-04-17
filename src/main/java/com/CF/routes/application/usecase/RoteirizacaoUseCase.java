@@ -22,9 +22,6 @@ public class RoteirizacaoUseCase {
     private final ConceptSoapClient soapClient;
     private final PedidoMapper mapper;
 
-    /**
-     * Varre a tabela PCCARREG em busca de registros marcados para envio.
-     */
     public void processarPendentes() {
         List<Long> pendentes = repository.buscarCarregamentosPendentes();
         if (pendentes.isEmpty()) {
@@ -36,7 +33,7 @@ public class RoteirizacaoUseCase {
         for (Long numcar : pendentes) {
             try {
                 this.executar(List.of(numcar));
-                // Sucesso: Marca como processado na PCCARREG para não repetir
+                // Sucesso: Marca como processado na PCCARREG para não repetir na próxima varredura
                 repository.marcarComoImportado(numcar);
             } catch (Exception e) {
                 log.error("Falha ao processar carregamento individual {}: {}", numcar, e.getMessage());
@@ -45,7 +42,7 @@ public class RoteirizacaoUseCase {
     }
 
     /**
-     * Executa o fluxo de roteirização técnica.
+     * Executa o fluxo técnico de roteirização para uma lista de carregamentos.
      */
     public void executar(List<Long> carregamentos) {
         log.info("### INICIANDO PROCESSO DE ROTEIRIZAÇÃO PARA: {} ###", carregamentos);
@@ -62,18 +59,30 @@ public class RoteirizacaoUseCase {
             PedidoDTO ref = pedidos.get(0);
             String placaFormatada = formatarPlaca(ref.getPlaca());
 
-            // Validação de placa: Se estiver vazia no banco, não adianta enviar para a API
+            // Validação de placa: Requisito obrigatório para roteirização na Concept
             if (placaFormatada.isEmpty()) {
                 log.error("ERRO: Carregamento {} ignorado pois a placa está vazia no banco.", ref.getNumCar());
                 return;
             }
 
-            // 2. Sincronização de Entidades (Zonas e Motorista)
+            // 2. SINCRONIZAÇÃO DE ENTIDADES (Estratégia Anti-Erro)
+            
+            // Sincroniza Zonas/Praças
             pedidos.stream()
                     .map(p -> new String[]{p.getCodZona(), p.getNomeZona()})
                     .distinct()
                     .forEach(z -> soapClient.cadastrarZona(z[0], z[1]));
             
+            // AUTO-HEALING: Sincroniza Lojas/Filiais (Resolve o erro de Loja Inválida)
+            pedidos.stream()
+                    .map(p -> new String[]{p.getCodLoja(), p.getNomeLoja()})
+                    .distinct()
+                    .forEach(l -> {
+                        log.info("Verificando/Cadastrando Loja: {} - {}", l[0], l[1]);
+                        soapClient.cadastrarLoja(l[0], l[1]);
+                    });
+
+            // Sincroniza Motorista
             soapClient.cadastrarMotorista(ref.getMotoristaMatricula(), ref.getMotoristaNome(), ref.getMotoristaCpf());
 
             // 3. Importação Massiva de Pedidos
@@ -99,18 +108,15 @@ public class RoteirizacaoUseCase {
 
     private String formatarPlaca(String placa) {
         if (placa == null || placa.isEmpty()) return "";
-        
         String limpa = placa.replaceAll("[^A-Za-z0-9]", "").toUpperCase().trim();
-        
         if (limpa.length() == 7) {
             return limpa.substring(0, 3) + "-" + limpa.substring(3);
         }
-        
         return limpa;
     }
 
     /**
-     * Gera o fragmento XML arg0 para cada pedido.
+     * Gera o fragmento XML arg0 para cada pedido seguindo o padrão da API.
      */
     private String gerarFragmentoPedidoXml(PedidoDTO p) {
         String dataAtual = LocalDate.now().toString();

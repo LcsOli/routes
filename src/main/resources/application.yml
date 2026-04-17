@@ -3,7 +3,7 @@ server:
 
 spring:
   datasource:
-    # Substitua pelos dados reais do seu servidor de banco de dados Oracle
+    # Dados do servidor de banco de dados Oracle WinThor
     url: ${DB_URL:jdbc:oracle:thin:@192.168.10.132:1521:WINT}
     username: ${DB_USER:COMPREFACIL}
     password: ${DB_PASS:COMP14WINT22}
@@ -16,7 +16,7 @@ spring:
     properties:
       hibernate.format_sql: true
 
-# Configurações específicas da API Concept (Parametrizadas)
+# Configurações específicas da API Concept e Automação
 concept:
   api:
     cnpj: ${CONCEPT_CNPJ:05.955.701/0001-06}
@@ -25,3 +25,8 @@ concept:
     endpoints:
       automatizador: "http://52.6.27.50:8181/automatizador"
       importador: "http://52.6.27.50:8181/importadorPedidos"
+  
+  # Configuração do Robô de Automação
+  automation:
+    # Intervalo de execução (60000ms = 1 minuto)
+    interval: 60000
