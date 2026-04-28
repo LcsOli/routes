@@ -10,9 +10,15 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.sql.Timestamp;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.stream.Collectors;
 
-
+/**
+ * Engenheiro Sénior: Repositório otimizado para integração com Oracle WinThor.
+ * Gerencia a extração de dados brutos e conversão para DTOs e Mapas de resumo.
+ * Ajustado para focar o Painel de Controle apenas em cargas já integradas com sucesso.
+ */
 @Slf4j
 @Repository
 public class PedidoRepository {
@@ -20,6 +26,64 @@ public class PedidoRepository {
     @PersistenceContext
     private EntityManager entityManager;
 
+    /**
+     * Dashboard: Busca o resumo de rotas que já foram enviadas para a Concept.
+     * Filtro Estratégico: ENVIAAPI = 'S' AND IMPORTADOAPI = 'S'.
+     * Ordenação: Da mais nova para a mais velha (DTSAIDA DESC, NUMCAR DESC).
+     */
+    public List<Map<String, Object>> buscarResumoRotasAtivas(String dataFiltro) {
+        // Lógica de filtro por data: Se não informada, traz os últimos 5 dias por padrão
+        String condicaoData = (dataFiltro == null || dataFiltro.isEmpty()) 
+            ? "C.DTSAIDA >= TRUNC(SYSDATE) - 5" 
+            : "TRUNC(C.DTSAIDA) = TO_DATE(:dataFiltro, 'YYYY-MM-DD')";
+
+        String sql = """
+            SELECT 
+                C.NUMCAR, 
+                NVL(V.PLACA, 'S/P') AS PLACA, 
+                NVL(E.NOME, 'S/M') AS MOTORISTA,
+                (SELECT COUNT(*) FROM PCPEDC P WHERE P.NUMCAR = C.NUMCAR AND P.DTFAT IS NOT NULL) as TOTAL_ENTREGAS,
+                C.DTSAIDA
+            FROM PCCARREG C
+            LEFT JOIN PCVEICUL V ON C.CODVEICULO = V.CODVEICULO
+            LEFT JOIN PCEMPR E ON C.CODMOTORISTA = E.MATRICULA
+            WHERE C.ENVIAAPI = 'S' 
+              AND C.IMPORTADOAPI = 'S'
+              AND %s
+            ORDER BY C.DTSAIDA DESC, C.NUMCAR DESC
+            """.formatted(condicaoData);
+        
+        try {
+            Query query = entityManager.createNativeQuery(sql);
+            
+            // Seta o parâmetro se o filtro de data foi utilizado
+            if (dataFiltro != null && !dataFiltro.isEmpty()) {
+                query.setParameter("dataFiltro", dataFiltro);
+            }
+            
+            @SuppressWarnings("unchecked")
+            List<Object[]> results = query.getResultList();
+            
+            return results.stream().map(row -> {
+                Map<String, Object> map = new HashMap<>();
+                map.put("numCar", row[0]);
+                map.put("placa", row[1]);
+                map.put("motorista", row[2]);
+                // Trata o retorno numérico do Oracle (BigDecimal/Number) com segurança
+                map.put("totalEntregas", row[3] != null ? ((Number) row[3]).intValue() : 0);
+                // Converte Timestamp para String formatada dd/MM/yyyy para o Frontend
+                map.put("dataSaida", row[4] != null ? new java.text.SimpleDateFormat("dd/MM/yyyy").format((Timestamp) row[4]) : "--/--/----");
+                return map;
+            }).collect(Collectors.toList());
+        } catch (Exception e) {
+            log.error("Erro ao buscar resumo de rotas integradas no Oracle: {}", e.getMessage());
+            return List.of();
+        }
+    }
+
+    /**
+     * Fila: Busca carregamentos marcados para envio que ainda não foram processados pelo robô.
+     */
     public List<Long> buscarCarregamentosPendentes() {
         String sql = """
             SELECT NUMCAR 
@@ -29,24 +93,26 @@ public class PedidoRepository {
             """;
         try {
             Query query = entityManager.createNativeQuery(sql);
-            List<Number> result = query.getResultList();
-            return result.stream().map(Number::longValue).collect(Collectors.toList());
+            @SuppressWarnings("unchecked")
+            List<Object> result = query.getResultList();
+            return result.stream()
+                .map(n -> ((Number) n).longValue())
+                .collect(Collectors.toList());
         } catch (Exception e) {
-            log.error("Erro ao consultar fila de carregamentos (PCCARREG): {}", e.getMessage());
+            log.error("Erro ao consultar fila de carregamentos pendentes: {}", e.getMessage());
             return List.of();
         }
     }
 
     /**
-     * SQL Principal: Busca detalhes dos pedidos para o XML.
+     * Detalhe: Busca todos os dados necessários para o mapeamento SOAP do itinerário.
      */
     public List<PedidoDTO> buscarPedidosParaRoteirizacao(List<Long> carregamentos) {
         if (carregamentos == null || carregamentos.isEmpty()) return List.of();
 
         String sql = """
             SELECT
-                a.numped,
-                a.data,
+                a.numped, a.data,
                 LPAD(a.hora, 2, '0') || ':' || LPAD(a.minuto, 2, '0') AS hora,
                 ROUND(a.vlatend, 2) AS valor_total,
                 b.cliente AS nome_cliente,
@@ -66,14 +132,7 @@ public class PedidoRepository {
                     WHEN c.codrotaprinc IN (133, 209, 88, 89, 87, 111, 151, 160, 207, 148, 208, 132, 203) THEN 'CD ITAPETININGA'
                     ELSE 'SAO JOSE DO RIO PRETO'
                 END AS nome_loja,
-                a.totpeso,
-                a.totvolume,
-                a.numcar,
-                a.numnota,
-                v.placa,
-                e.matricula,
-                e.nome AS nome_motorista,
-                e.cpf 
+                a.totpeso, a.totvolume, a.numcar, a.numnota, v.placa, e.matricula, e.nome AS nome_motorista, e.cpf 
             FROM pcpedc a 
             JOIN pcclient b ON a.codcli = b.codcli 
             JOIN pccarreg c ON a.numcar = c.numcar 
@@ -81,51 +140,61 @@ public class PedidoRepository {
             LEFT JOIN pcveicul v ON c.codveiculo = v.codveiculo
             LEFT JOIN pcempr e ON c.codmotorista = e.matricula 
             WHERE a.numcar IN (:carregamentos)
-              AND a.numnota > 0 
               AND a.dtfat IS NOT NULL
+              AND a.numnota > 0
             """;
 
-        Query query = entityManager.createNativeQuery(sql);
-        query.setParameter("carregamentos", carregamentos);
+        try {
+            Query query = entityManager.createNativeQuery(sql);
+            query.setParameter("carregamentos", carregamentos);
+            @SuppressWarnings("unchecked")
+            List<Object[]> results = query.getResultList();
 
-        List<Object[]> results = query.getResultList();
-
-        return results.stream().map(row -> PedidoDTO.builder()
-                .numPed(row[0] != null ? String.valueOf(row[0]) : null)
-                .data(row[1] != null ? ((Timestamp) row[1]).toLocalDateTime().toLocalDate() : null)
-                .hora(row[2] != null ? String.valueOf(row[2]) : "08:00")
-                .valorTotal(row[3] != null ? ((Number) row[3]).doubleValue() : 0.0)
-                .nomeCliente(row[4] != null ? String.valueOf(row[4]) : "")
-                .codCli(row[5] != null ? String.valueOf(row[5]) : null)
-                .endereco(row[6] != null ? String.valueOf(row[6]) : "")
-                .codZona(row[7] != null ? String.valueOf(row[7]) : "")
-                .nomeZona(row[8] != null ? String.valueOf(row[8]) : "")
-                .codVendedor(row[9] != null ? String.valueOf(row[9]) : "")
-                .nomeVendedor(row[10] != null ? String.valueOf(row[10]) : "")
-                .codLoja(row[11] != null ? String.valueOf(row[11]) : "")
-                .nomeLoja(row[12] != null ? String.valueOf(row[12]) : "")
-                .peso(row[13] != null ? ((Number) row[13]).doubleValue() : 0.0)
-                .volume(row[14] != null ? ((Number) row[14]).doubleValue() : 0.0)
-                .numCar(row[15] != null ? ((Number) row[15]).longValue() : null)
-                .numNota(row[16] != null ? String.valueOf(row[16]) : "")
-                .placa(row[17] != null ? String.valueOf(row[17]) : "")
-                .motoristaMatricula(row[18] != null ? String.valueOf(row[18]) : "")
-                .motoristaNome(row[19] != null ? String.valueOf(row[19]) : "")
-                .motoristaCpf(row[20] != null ? String.valueOf(row[20]) : "")
-                .build()
-        ).collect(Collectors.toList());
+            return results.stream().map(row -> PedidoDTO.builder()
+                    .numPed(row[0] != null ? String.valueOf(row[0]) : null)
+                    .data(row[1] != null ? ((Timestamp) row[1]).toLocalDateTime().toLocalDate() : null)
+                    .hora(row[2] != null ? String.valueOf(row[2]) : "08:00")
+                    .valorTotal(row[3] != null ? ((Number) row[3]).doubleValue() : 0.0)
+                    .nomeCliente(row[4] != null ? String.valueOf(row[4]) : "")
+                    .codCli(row[5] != null ? String.valueOf(row[5]) : null)
+                    .endereco(row[6] != null ? String.valueOf(row[6]) : "")
+                    .codZona(row[7] != null ? String.valueOf(row[7]) : "")
+                    .nomeZona(row[8] != null ? String.valueOf(row[8]) : "")
+                    .codVendedor(row[9] != null ? String.valueOf(row[9]) : "")
+                    .nomeVendedor(row[10] != null ? String.valueOf(row[10]) : "")
+                    .codLoja(row[11] != null ? String.valueOf(row[11]) : "")
+                    .nomeLoja(row[12] != null ? String.valueOf(row[12]) : "")
+                    .peso(row[13] != null ? ((Number) row[13]).doubleValue() : 0.0)
+                    .volume(row[14] != null ? ((Number) row[14]).doubleValue() : 0.0)
+                    .numCar(row[15] != null ? ((Number) row[15]).longValue() : null)
+                    .numNota(row[16] != null ? String.valueOf(row[16]) : "")
+                    .placa(row[17] != null ? String.valueOf(row[17]) : "")
+                    .motoristaMatricula(row[18] != null ? String.valueOf(row[18]) : "")
+                    .motoristaNome(row[19] != null ? String.valueOf(row[19]) : "")
+                    .motoristaCpf(row[20] != null ? String.valueOf(row[20]) : "")
+                    .build()
+            ).collect(Collectors.toList());
+        } catch (Exception e) {
+            log.error("Erro ao buscar pedidos detalhados para integração: {}", e.getMessage());
+            return List.of();
+        }
     }
 
+    /**
+     * Atualiza o carregamento indicando que já foi enviado para a API.
+     */
     @Transactional
     public void marcarComoImportado(Long numcar) {
         String sql = "UPDATE PCCARREG SET IMPORTADOAPI = 'S', DATAIMPORTADOAPI = SYSDATE WHERE NUMCAR = ?";
-        try {
-            entityManager.createNativeQuery(sql)
-                    .setParameter(1, numcar)
-                    .executeUpdate();
-            log.info("Carregamento {} atualizado: IMPORTADOAPI='S' e DATAIMPORTADOAPI registrada.", numcar);
-        } catch (Exception e) {
-            log.error("Erro ao atualizar IMPORTADOAPI na PCCARREG: {}", e.getMessage());
-        }
+        entityManager.createNativeQuery(sql).setParameter(1, numcar).executeUpdate();
+    }
+
+    /**
+     * Registra o log de sucesso na tabela de ocorrências do WinThor.
+     */
+    @Transactional
+    public void registrarLogSucesso(Long numcar) {
+        String sql = "INSERT INTO PCCORREN (DATA, HISTORICO, NUMCAR) VALUES (SYSDATE, 'Integrado via Concept Sync', ?)";
+        entityManager.createNativeQuery(sql).setParameter(1, numcar).executeUpdate();
     }
 }

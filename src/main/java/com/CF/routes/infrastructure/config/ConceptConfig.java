@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @ConfigurationProperties(prefix = "concept.api")
 public class ConceptConfig {
+    
     private String cnpj;
     private String senhaCliente;
     private String senhaCentral;
