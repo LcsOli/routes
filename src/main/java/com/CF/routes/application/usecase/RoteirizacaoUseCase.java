@@ -13,6 +13,10 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
+/**
+ * Engenheiro Sénior: Orquestrador completo de roteirização.
+ * Gerencia o fluxo ponta a ponta: extração Oracle, sincronização de entidades e integração SOAP.
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -22,6 +26,9 @@ public class RoteirizacaoUseCase {
     private final ConceptSoapClient soapClient;
     private final PedidoMapper mapper;
 
+    /**
+     * Processa a fila de carregamentos marcados para envio.
+     */
     public void processarPendentes() {
         List<Long> pendentes = repository.buscarCarregamentosPendentes();
         if (pendentes.isEmpty()) {
@@ -106,6 +113,9 @@ public class RoteirizacaoUseCase {
         log.info("### FLUXO FINALIZADO PARA O CARREGAMENTO ###");
     }
 
+    /**
+     * Formata a placa para o padrão exigido (AAA-9999 ou ABC1D23).
+     */
     private String formatarPlaca(String placa) {
         if (placa == null || placa.isEmpty()) return "";
         String limpa = placa.replaceAll("[^A-Za-z0-9]", "").toUpperCase().trim();

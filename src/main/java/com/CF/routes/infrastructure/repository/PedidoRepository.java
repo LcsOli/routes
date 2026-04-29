@@ -61,7 +61,7 @@ public class PedidoRepository {
                 query.setParameter("dataFiltro", dataFiltro);
             }
             
-            @SuppressWarnings("unchecked")
+           
             List<Object[]> results = query.getResultList();
             
             return results.stream().map(row -> {
@@ -93,7 +93,7 @@ public class PedidoRepository {
             """;
         try {
             Query query = entityManager.createNativeQuery(sql);
-            @SuppressWarnings("unchecked")
+  
             List<Object> result = query.getResultList();
             return result.stream()
                 .map(n -> ((Number) n).longValue())
@@ -147,7 +147,7 @@ public class PedidoRepository {
         try {
             Query query = entityManager.createNativeQuery(sql);
             query.setParameter("carregamentos", carregamentos);
-            @SuppressWarnings("unchecked")
+
             List<Object[]> results = query.getResultList();
 
             return results.stream().map(row -> PedidoDTO.builder()
