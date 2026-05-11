@@ -83,14 +83,24 @@
         
         <!-- SEÇÃO PRINCIPAL: PAINEL DE MONITORAMENTO -->
         <section id="tab-rastreio" class="space-y-4">
-            
-            <div class="flex flex-col xl:flex-row justify-between items-end gap-4">
-                <div>
-                    <h2 class="text-xl font-black text-white tracking-tight">Status da Frota</h2>
-                    <p class="text-slate-400 text-[10px] uppercase font-bold tracking-wider mt-0.5">Sincronização Ativa Oracle ➔ Concept API.</p>
-                </div>
-                <div class="flex flex-wrap gap-2 items-end">
-                    
+    
+    <div class="flex flex-col xl:flex-row justify-between items-end gap-4">
+        <div>
+            <div class="flex items-center gap-4">
+                <h2 class="text-xl font-black text-white tracking-tight">Status da Frota</h2>
+                
+                <a href="planilha.html" class="bg-slate-800/50 hover:bg-emerald-600 text-slate-400 hover:text-slate-950 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all border border-slate-700/50 flex items-center gap-2 group">
+                    <svg class="w-3.5 h-3.5 text-emerald-500 group-hover:text-slate-950 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    Versão simplificada
+                </a>
+            </div>
+            <p class="text-slate-400 text-[10px] uppercase font-bold tracking-wider mt-0.5">Sincronização Ativa Oracle ➔ Concept API.</p>
+        </div>
+        
+        <div class="flex flex-wrap gap-2 items-end">
+
                     <div class="flex flex-col gap-1">
                         <label class="text-[9px] text-slate-500 font-black uppercase ml-1">Data Saída</label>
                         <input type="date" id="filtroData" onchange="carregarPainelInteligente()" class="bg-slate-900 border border-slate-700 px-3 py-1.5 rounded-lg text-[11px] text-emerald-400 focus:outline-none focus:border-emerald-500 transition-all w-36">

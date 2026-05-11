@@ -13,10 +13,6 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
-/**
- * Engenheiro Sénior: Orquestrador completo de roteirização.
- * Gerencia o fluxo ponta a ponta: extração Oracle, sincronização de entidades e integração SOAP.
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -126,46 +122,78 @@ public class RoteirizacaoUseCase {
     }
 
     /**
-     * Gera o fragmento XML arg0 para cada pedido seguindo o padrão da API.
+     * Gera o fragmento XML arg0 para cada pedido seguindo rigorosamente o padrão funcional validado.
      */
     private String gerarFragmentoPedidoXml(PedidoDTO p) {
         String dataAtual = LocalDate.now().toString();
         String horaAtual = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"));
 
+        // Força a formatação numérica para usar ponto ao invés de vírgula (Padrão SOAP)
+        String valorStr = String.format(java.util.Locale.US, "%.2f", p.getValorTotal());
+        String pesoStr = String.format(java.util.Locale.US, "%.4f", p.getPeso());
+        String volStr = String.format(java.util.Locale.US, "%.4f", p.getVolume());
+
+        String enderecoEscapado = mapper.escapeXml(p.getEndereco());
+        String clienteEscapado = mapper.escapeXml(p.getNomeCliente());
+
         return """
             <arg0>
-               <cadastrarPontoInteresse>false</cadastrarPontoInteresse>
                <numeroPedido>%s</numeroPedido>
                <numeroCarregamento>%d</numeroCarregamento>
-               <numeroNotaFiscal>%s</numeroNotaFiscal>
+               
                <dataPedido>%s</dataPedido>
                <horaPedido>%s</horaPedido>
-               <qtdItensPedido>1</qtdItensPedido>
-               <valorPedido>%s</valorPedido>
-               <descricao>%s</descricao>
-               <loja><codigoLoja>%s</codigoLoja><nome>%s</nome></loja>
-               <vendedor><codigoVendedor>%s</codigoVendedor><nome>%s</nome></vendedor>
-               <zona><codigoZona>%s</codigoZona><nome>%s</nome></zona>
-               <horaEntregaInicial>08:00</horaEntregaInicial>
-               <horaEntregaFinal>18:00</horaEntregaFinal>
-               <tempoAtendimento>45</tempoAtendimento>
+               
                <dataCompromissoEntrega>%s</dataCompromissoEntrega>
                <horaCompromissoEntrega>%s</horaCompromissoEntrega>
-               <peso>%s</peso><volume>%s</volume>
+               <horaEntregaInicial>08:00</horaEntregaInicial>
+               <horaEntregaFinal>18:00</horaEntregaFinal>
+               
                <endereco>%s</endereco>
+               
+               <poi>
+                  <cadastrarPontoInteresse>false</cadastrarPontoInteresse>
+               </poi>
+               
+               <tempoAtendimento>45</tempoAtendimento>
+               <qtdItensPedido>1</qtdItensPedido>
+               <peso>%s</peso>
+               <volume>%s</volume>
+               <valorPedido>%s</valorPedido>
+               
+               <loja>
+                  <codigoLoja>%s</codigoLoja>
+               </loja>
+               <vendedor>
+                  <codigoVendedor>%s</codigoVendedor>
+               </vendedor>
+               <zona>
+                  <codigoZona>%s</codigoZona>
+               </zona>
+               
+               <descricao>%s</descricao>
             </arg0>
             """.formatted(
-                p.getNumPed(), p.getNumCar(), p.getNumNota(),
-                p.getData().toString(), p.getHora(),
-                mapper.formatarDecimal(p.getValorTotal()),
-                mapper.escapeXml(p.getNomeCliente()),
-                p.getCodLoja(), mapper.escapeXml(p.getNomeLoja()),
-                p.getCodVendedor(), mapper.escapeXml(p.getNomeVendedor()),
-                p.getCodZona(), mapper.escapeXml(p.getNomeZona()),
-                dataAtual, horaAtual,
-                mapper.formatarDecimal(p.getPeso()),
-                mapper.formatarDecimal(p.getVolume()),
-                mapper.escapeXml(p.getEndereco())
+                p.getNumPed(), 
+                p.getNumCar(),
+                
+                p.getData().toString(), 
+                p.getHora(),
+                
+                dataAtual, 
+                horaAtual, 
+                
+                enderecoEscapado,
+                
+                pesoStr,
+                volStr,
+                valorStr,
+                
+                p.getCodLoja(),
+                p.getCodVendedor(),
+                p.getCodZona(),
+                
+                clienteEscapado
         );
     }
 }

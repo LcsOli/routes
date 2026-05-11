@@ -14,11 +14,6 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.stream.Collectors;
 
-/**
- * Engenheiro Sénior: Repositório otimizado para integração com Oracle WinThor.
- * Gerencia a extração de dados brutos e conversão para DTOs e Mapas de resumo.
- * Ajustado para focar o Painel de Controle apenas em cargas já integradas com sucesso.
- */
 @Slf4j
 @Repository
 public class PedidoRepository {
@@ -26,11 +21,6 @@ public class PedidoRepository {
     @PersistenceContext
     private EntityManager entityManager;
 
-    /**
-     * Dashboard: Busca o resumo de rotas que já foram enviadas para a Concept.
-     * Filtro Estratégico: ENVIAAPI = 'S' AND IMPORTADOAPI = 'S'.
-     * Ordenação: Da mais nova para a mais velha (DTSAIDA DESC, NUMCAR DESC).
-     */
     public List<Map<String, Object>> buscarResumoRotasAtivas(String dataFiltro) {
         // Lógica de filtro por data: Se não informada, traz os últimos 5 dias por padrão
         String condicaoData = (dataFiltro == null || dataFiltro.isEmpty()) 
@@ -61,7 +51,6 @@ public class PedidoRepository {
                 query.setParameter("dataFiltro", dataFiltro);
             }
             
-           
             List<Object[]> results = query.getResultList();
             
             return results.stream().map(row -> {
@@ -83,6 +72,7 @@ public class PedidoRepository {
 
     /**
      * Fila: Busca carregamentos marcados para envio que ainda não foram processados pelo robô.
+     * Restrição aplicada (ROWNUM <= 2) para evitar timeout por excesso de requisições simultâneas.
      */
     public List<Long> buscarCarregamentosPendentes() {
         String sql = """
@@ -90,6 +80,7 @@ public class PedidoRepository {
             FROM PCCARREG 
             WHERE ENVIAAPI = 'S' 
               AND (IMPORTADOAPI = 'N' OR IMPORTADOAPI IS NULL)
+              AND ROWNUM <= 2
             """;
         try {
             Query query = entityManager.createNativeQuery(sql);
