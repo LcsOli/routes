@@ -121,18 +121,24 @@ public class RoteirizacaoUseCase {
         return limpa;
     }
 
-    /**
+   /**
      * Gera o fragmento XML arg0 para cada pedido seguindo rigorosamente o padrão funcional validado.
      */
     private String gerarFragmentoPedidoXml(PedidoDTO p) {
         String dataAtual = LocalDate.now().toString();
         String horaAtual = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"));
 
-        // Força a formatação numérica para usar ponto ao invés de vírgula (Padrão SOAP)
+        // Formatação Decimal Americana (Ponto) - CRÍTICO para SOAP
         String valorStr = String.format(java.util.Locale.US, "%.2f", p.getValorTotal());
         String pesoStr = String.format(java.util.Locale.US, "%.4f", p.getPeso());
         String volStr = String.format(java.util.Locale.US, "%.4f", p.getVolume());
 
+        // Fallback de Nome (Lógica NomeOuCodigo do VBA)
+        String nomeLoja = (p.getNomeLoja() == null || p.getNomeLoja().isEmpty()) ? p.getCodLoja() : p.getNomeLoja();
+        String nomeVendedor = (p.getNomeVendedor() == null || p.getNomeVendedor().isEmpty()) ? p.getCodVendedor() : p.getNomeVendedor();
+        String nomeZona = (p.getNomeZona() == null || p.getNomeZona().isEmpty()) ? p.getCodZona() : p.getNomeZona();
+
+        // Escapar strings para evitar quebra do XML com caracteres como '&' ou '<'
         String enderecoEscapado = mapper.escapeXml(p.getEndereco());
         String clienteEscapado = mapper.escapeXml(p.getNomeCliente());
 
@@ -153,6 +159,12 @@ public class RoteirizacaoUseCase {
                
                <poi>
                   <cadastrarPontoInteresse>false</cadastrarPontoInteresse>
+                  <nome>%s</nome>
+                  <descricao>%s</descricao>
+                  <grupo><nome>Clientes</nome></grupo>
+                  <raio>0.1</raio>
+                  <identificar>true</identificar>
+                  <enviarAlerta>false</enviarAlerta>
                </poi>
                
                <tempoAtendimento>45</tempoAtendimento>
@@ -163,12 +175,15 @@ public class RoteirizacaoUseCase {
                
                <loja>
                   <codigoLoja>%s</codigoLoja>
+                  <nome>%s</nome>
                </loja>
                <vendedor>
                   <codigoVendedor>%s</codigoVendedor>
+                  <nome>%s</nome>
                </vendedor>
                <zona>
                   <codigoZona>%s</codigoZona>
+                  <nome>%s</nome>
                </zona>
                
                <descricao>%s</descricao>
@@ -181,19 +196,25 @@ public class RoteirizacaoUseCase {
                 p.getHora(),
                 
                 dataAtual, 
-                horaAtual, 
+                horaAtual,
                 
                 enderecoEscapado,
+                
+                clienteEscapado, // Nome POI
+                enderecoEscapado, // Descrição POI
                 
                 pesoStr,
                 volStr,
                 valorStr,
                 
                 p.getCodLoja(),
+                nomeLoja,
                 p.getCodVendedor(),
+                nomeVendedor,
                 p.getCodZona(),
+                nomeZona,
                 
-                clienteEscapado
+                clienteEscapado 
         );
     }
 }

@@ -22,12 +22,11 @@ public class ConceptSoapClient {
     private final ConceptConfig config;
     private final PedidoMapper mapper;
 
-    // Namespace padrão para os métodos da fachada Concept
     private static final String NS_FACHADA = "http://fachada.concept/";
 
     /**
      * Dashboard: Lista o itinerário detalhado de um carregamento.
-     * Obs: Redirecionado para o endpoint do importador conforme testes funcionais.
+     * Obs: Redirecionado para o endpoint do importador conforme testes funcionais realizados.
      */
     public String listarItinerariosCarregamento(Long numCar) {
         String xml = """
@@ -44,14 +43,14 @@ public class ConceptSoapClient {
             </soapenv:Envelope>
             """.formatted(NS_FACHADA, numCar, config.getCnpj(), config.getSenhaCliente(), config.getSenhaCentral());
         
-        // URL específica onde o método 'listarItinerariosCarregamento' está respondendo
+        // URL específica identificada em testes onde o método responde corretamente
         String urlCorreta = "http://52.6.27.50:8181/importadorPedidos";
         
         return enviarRequestComRetorno(urlCorreta, xml, "listarItinerariosCarregamento");
     }
 
     /**
-     * Consulta a lista de viagens ativas na plataforma Concept.
+     * Consulta a lista de viagens ativas para o painel de monitoramento.
      */
     public String listarViagens() {
         String xml = """
@@ -71,7 +70,7 @@ public class ConceptSoapClient {
     }
 
     /**
-     * Cadastra ou atualiza uma zona (praça) no sistema Concept.
+     * Sincronização: Cadastra Zona/Praça antes da importação.
      */
     public void cadastrarZona(String codigo, String nome) {
         String xml = """
@@ -88,10 +87,9 @@ public class ConceptSoapClient {
     }
 
     /**
-     * Cadastra ou atualiza uma loja (cliente) com coordenadas geográficas.
+     * Sincronização: Cadastra Loja com coordenadas de geofence.
      */
     public void cadastrarLoja(String codigo, String nome) {
-        // Coordenadas padrão (podem ser parametrizadas futuramente)
         String lat = "-20.797732132339135";
         String lng = "-49.32830021380005";
         
@@ -116,7 +114,7 @@ public class ConceptSoapClient {
     }
 
     /**
-     * Cadastra um motorista no sistema para fins de roteirização.
+     * Sincronização: Cadastra o motorista garantindo a máscara de CPF.
      */
     public void cadastrarMotorista(String matricula, String nome, String cpf) {
         String xml = """
@@ -138,7 +136,7 @@ public class ConceptSoapClient {
     }
 
     /**
-     * Importa blocos de pedidos (XML fragmentado) para o sistema.
+     * Importação: Envio do lote massivo de pedidos concatenados.
      */
     public void importarPedidos(String blocosArg0Xml) {
         String xml = """
@@ -157,7 +155,7 @@ public class ConceptSoapClient {
     }
 
     /**
-     * Dispara o comando de roteirização para uma carga específica.
+     * Roteirização: Disparo final do algoritmo da Concept.
      */
     public void roteirizarPedidos(Long numCar, String placa, String motorista) {
         String dataIso = OffsetDateTime.now().withHour(0).withMinute(0).withSecond(0).withNano(0).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
@@ -184,30 +182,22 @@ public class ConceptSoapClient {
         enviarRequest(config.getEndpoints().getAutomatizador(), xml, "roteirizarPedidos");
     }
 
-    /**
-     * Executa a requisição HTTP POST para o webservice Concept.
-     */
     private void enviarRequest(String url, String xmlBody, String operacao) {
         enviarRequestComRetorno(url, xmlBody, operacao);
     }
 
-    /**
-     * Método central de envio com tratamento de timeouts e cabeçalhos SOAP.
-     */
     private String enviarRequestComRetorno(String url, String xmlBody, String operacao) {
         long start = System.currentTimeMillis();
         
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(5000);  // 5 seg de conexão
-        factory.setReadTimeout(45000);     // 45 seg de leitura (API SOAP pode ser lenta)
+        factory.setConnectTimeout(5000); 
+        factory.setReadTimeout(45000); 
         
         RestTemplate rt = new RestTemplate(factory);
         rt.getMessageConverters().add(0, new StringHttpMessageConverter(StandardCharsets.UTF_8));
         
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.valueOf("text/xml;charset=UTF-8"));
-        
-        // SOAPAction vazio resolve problemas de despacho em servidores JAX-WS / Glassfish
         headers.set("SOAPAction", "\"\"");
         
         try {
@@ -215,19 +205,14 @@ public class ConceptSoapClient {
             log.info("[SOAP] Enviando '{}' para {}", operacao, url);
             
             ResponseEntity<String> response = rt.postForEntity(url, entity, String.class);
-            
             String body = response.getBody();
             long duration = System.currentTimeMillis() - start;
             
-            if (body != null) {
-                log.info("[SOAP] Resposta de '{}' recebida em {}ms. Tamanho: {} bytes.", 
-                        operacao, duration, body.length());
-            }
-            
+            log.info("[SOAP] Resposta de '{}' recebida em {}ms.", operacao, duration);
             return body;
         } catch (Exception e) {
-            log.error("[SOAP] Falha crítica na operação {}: {}", operacao, e.getMessage());
-            throw new RuntimeException("Erro na integração Concept: " + e.getMessage());
+            log.error("[SOAP] Falha na operação {}: {}", operacao, e.getMessage());
+            throw new RuntimeException("Erro Concept API: " + e.getMessage());
         }
     }
 }

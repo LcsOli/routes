@@ -21,18 +21,18 @@
             border: 1px solid rgba(255, 255, 255, 0.05);
         }
 
-        /* Pintura lateral baseada no status */
+        /* Estilização das linhas baseada no progresso real */
         .status-finalizada { 
             border-left: 4px solid #10b981 !important; 
-            background: rgba(16, 185, 129, 0.05); 
+            background: rgba(16, 185, 129, 0.08) !important; 
         }
         .status-andamento { 
             border-left: 4px solid #f59e0b !important; 
-            background: rgba(245, 158, 11, 0.05); 
+            background: rgba(245, 158, 11, 0.05) !important; 
         }
         .status-nao-iniciada { 
             border-left: 4px solid #ef4444 !important; 
-            background: rgba(239, 68, 68, 0.05); 
+            background: rgba(239, 68, 68, 0.05) !important; 
         }
         
         .loading-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
@@ -45,46 +45,49 @@
 
     <div class="max-w-[1600px] mx-auto space-y-6">
         
+        <!-- Cabeçalho de Navegação -->
         <div class="flex flex-col md:flex-row justify-between items-center gap-4">
             <div class="flex items-center gap-4">
-                <a href="index.html" class="bg-slate-800 hover:bg-slate-700 p-2 rounded-lg transition-all shadow-lg border border-slate-700/50">
+                <button onclick="window.history.back()" class="bg-slate-800 hover:bg-slate-700 p-2 rounded-lg transition-all shadow-lg border border-slate-700/50">
                     <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
                     </svg>
-                </a>
+                </button>
                 <div>
-                    <h1 class="text-2xl font-black text-white tracking-tight uppercase leading-tight">Painel Escala </h1>
-                    
+                    <h1 class="text-2xl font-black text-white tracking-tight uppercase leading-tight">Painel de Escala</h1>
                     <div class="flex flex-col mt-1">
-                        <label class="text-[8px] text-slate-500 font-black uppercase tracking-widest">Data de Saída</label>
+                        <label class="text-[8px] text-slate-500 font-black uppercase tracking-widest">Filtro por Data de Saída</label>
                         <input type="date" id="filtroData" onchange="carregarDados()" class="bg-transparent text-emerald-400 font-bold text-xs focus:outline-none cursor-pointer">
                     </div>
                 </div>
             </div>
 
-            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[9px] font-black uppercase">
-                <div class="px-3 py-1 bg-emerald-500/20 border border-emerald-500/40 rounded text-emerald-400 text-center">Finalizada</div>
-                <div class="px-3 py-1 bg-amber-500/20 border border-amber-500/40 rounded text-amber-400 text-center">Em Andamento</div>
-                <div class="px-3 py-1 bg-rose-500/20 border border-rose-500/40 rounded text-rose-400 text-center">Não Iniciada</div>
+            <!-- Legenda de Status -->
+            <div class="grid grid-cols-3 gap-2 text-[9px] font-black uppercase">
+                <div class="px-3 py-2 bg-emerald-500/20 border border-emerald-500/40 rounded text-emerald-400 text-center">Concluída</div>
+                <div class="px-3 py-2 bg-amber-500/20 border border-amber-500/40 rounded text-amber-400 text-center">Em Rota</div>
+                <div class="px-3 py-2 bg-rose-500/20 border border-rose-500/40 rounded text-rose-400 text-center">Pendente</div>
             </div>
         </div>
 
+        <!-- Tabela de Dados -->
         <div class="glass rounded-2xl overflow-hidden shadow-2xl border border-slate-800/60">
             <div class="overflow-x-auto">
                 <table class="w-full text-left border-collapse">
                     <thead>
                         <tr class="bg-slate-900/80 text-slate-500 text-[10px] font-black uppercase tracking-widest border-b border-slate-800">
-                            <th class="p-4">Carga</th>
-                            <th class="p-4">Data Saída</th>
-                            <th class="p-4">Placa</th>
-                            <th class="p-4">Motorista</th>
-                            <th class="p-4 text-center">Total</th>
-                            <th class="p-4 text-center">Aberto</th>
-                            <th class="p-4 text-center">Realizado</th>
+                            <th class="p-4">N° Carga</th>
+                            <th class="p-4">Saída</th>
+                            <th class="p-4">Veículo</th>
+                            <th class="p-4">Motorista Atribuído</th>
+                            <th class="p-4 text-center">Entregas</th>
+                            <th class="p-4 text-center">Restante</th>
+                            <th class="p-4 text-center">Sucesso</th>
                         </tr>
                     </thead>
                     <tbody id="tabelaCorpo" class="divide-y divide-slate-800/50 font-mono text-[11px]">
-                        </tbody>
+                        <!-- Inserção via JS -->
+                    </tbody>
                 </table>
             </div>
         </div>
@@ -105,14 +108,13 @@
             corpo.innerHTML = '<tr><td colspan="7" class="p-20 text-center text-slate-500 uppercase font-black text-[10px] tracking-[0.3em] animate-pulse">Sincronizando com Oracle...</td></tr>';
 
             try {
-                // Voltamos para o parâmetro único 'data' que o seu Controller espera
                 const response = await fetch(`${API_BASE}/api/roteirizacao/painel-geral?data=${dataFiltro}`);
                 const cargas = await response.json();
 
                 corpo.innerHTML = '';
                 
                 if (cargas.length === 0) {
-                    corpo.innerHTML = '<tr><td colspan="7" class="p-20 text-center text-slate-500 italic text-xs">Nenhuma carga nesta data.</td></tr>';
+                    corpo.innerHTML = '<tr><td colspan="7" class="p-20 text-center text-slate-500 italic text-xs">Nenhuma carga para esta data.</td></tr>';
                     return;
                 }
 
@@ -127,8 +129,8 @@
                         <td class="p-4 text-emerald-400 font-bold">${rota.placa}</td>
                         <td class="p-4 text-slate-300 font-sans font-semibold uppercase">${rota.motorista}</td>
                         <td id="total-${rota.numCar}" class="p-4 text-center font-black">${rota.totalEntregas}</td>
-                        <td id="aberto-${rota.numCar}" class="p-4 text-center text-amber-500/80 font-black loading-pulse">...</td>
-                        <td id="realizado-${rota.numCar}" class="p-4 text-center text-emerald-500 font-black loading-pulse">...</td>
+                        <td id="aberto-${rota.numCar}" class="p-4 text-center text-slate-500 font-black loading-pulse">...</td>
+                        <td id="realizado-${rota.numCar}" class="p-4 text-center text-slate-500 font-black loading-pulse">...</td>
                     `;
                     corpo.appendChild(tr);
 
@@ -144,46 +146,59 @@
             try {
                 const response = await fetch(`${API_BASE}/api/roteirizacao/itinerario/${numCar}`);
                 const xmlText = await response.text();
-                const xmlDoc = new DOMParser().parseFromString(xmlText, "text/xml");
-                const itens = xmlDoc.getElementsByTagName("lista");
+                
+                // Lógica de Processamento Seguro portado do Script original
+                const xmlLimpo = xmlText.replace(/<[^>]*listaOcorrencias[^>]*>[\s\S]*?<\/[^>]*listaOcorrencias>/gi, "");
+                const xmlDoc = new DOMParser().parseFromString(xmlLimpo, "text/xml");
+                const statusTags = xmlDoc.getElementsByTagName("status");
 
-                let realizado = 0;
-                let totalReal = itens.length > 0 ? itens.length : totalDb;
+                let total = statusTags.length;
+                let aberto = 0;
 
-                if (itens.length > 0) {
-                    Array.from(itens).forEach(item => {
-                        const status = (item.getElementsByTagName("status")?.[0]?.textContent || "").toLowerCase();
-                        if (/entregue|finalizado|concluido|concluído|realizado/.test(status)) realizado++;
+                if (total > 0) {
+                    Array.from(statusTags).forEach(tag => {
+                        if (tag.textContent.trim().toUpperCase() === "ABERTO") {
+                            aberto++;
+                        }
                     });
+                } else {
+                    total = totalDb;
+                    aberto = totalDb;
                 }
 
-                const aberto = Math.max(0, totalReal - realizado);
+                const realizado = Math.max(0, total - aberto);
                 
                 const elTotal = document.getElementById(`total-${numCar}`);
                 const elAberto = document.getElementById(`aberto-${numCar}`);
                 const elRealizado = document.getElementById(`realizado-${numCar}`);
                 const linha = document.getElementById(`linha-${numCar}`);
 
-                if (elTotal) elTotal.innerText = totalReal;
+                if (elTotal) elTotal.innerText = total;
                 if (elRealizado) {
                     elRealizado.innerText = realizado;
-                    elRealizado.classList.remove('loading-pulse');
+                    elRealizado.classList.remove('loading-pulse', 'text-slate-500');
+                    elRealizado.classList.add('text-emerald-500');
                 }
                 if (elAberto) {
                     elAberto.innerText = aberto;
-                    elAberto.classList.remove('loading-pulse');
+                    elAberto.classList.remove('loading-pulse', 'text-slate-500');
+                    elAberto.classList.add('text-amber-500');
                 }
 
                 if (linha) {
                     linha.classList.remove('status-finalizada', 'status-andamento', 'status-nao-iniciada');
 
-                    // Lógica de Pintura solicitada
-                    if (realizado === totalReal && totalReal > 0) {
-                        linha.classList.add('status-finalizada');
-                    } else if (aberto > 0) {
-                        linha.classList.add('status-andamento');
-                    } else if (aberto < 1) {
-                        linha.classList.add('status-nao-iniciada');
+                    if (total > 0) {
+                        if (realizado === total) {
+                            // 100% Concluída
+                            linha.classList.add('status-finalizada');
+                        } else if (realizado > 0) {
+                            // Em rota / parcial
+                            linha.classList.add('status-andamento');
+                        } else {
+                            // Pendente / Não iniciada
+                            linha.classList.add('status-nao-iniciada');
+                        }
                     }
                 }
 
