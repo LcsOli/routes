@@ -6,10 +6,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-/**
- * Engenheiro Sénior: Componente de automação.
- * Responsável por disparar o processamento da fila de roteirização periodicamente.
- */
 @Slf4j
 @Component
 @RequiredArgsConstructor

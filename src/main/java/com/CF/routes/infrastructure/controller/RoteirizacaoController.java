@@ -13,10 +13,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Engenheiro Sénior: Controller central da API.
- * Gerencia tanto o processamento de cargas quanto o novo Painel de Acompanhamento em Tempo Real.
- */
+
 @Slf4j
 @RestController
 @RequestMapping("/api/roteirizacao")

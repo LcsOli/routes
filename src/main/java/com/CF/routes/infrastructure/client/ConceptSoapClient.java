@@ -14,11 +14,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 
-/**
- * Engenheiro Sénior: Cliente SOAP de alta performance.
- * Centraliza as comunicações com a API Concept GPS.
- * Redireciona chamadas específicas para endpoints funcionais observados em homologação.
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
