@@ -21,7 +21,7 @@
             border: 1px solid rgba(255, 255, 255, 0.05);
         }
 
-        /* Estilização das linhas baseada no progresso real */
+        /* Cores de status corrigidas conforme script original */
         .status-finalizada { 
             border-left: 4px solid #10b981 !important; 
             background: rgba(16, 185, 129, 0.08) !important; 
@@ -45,7 +45,6 @@
 
     <div class="max-w-[1600px] mx-auto space-y-6">
         
-        <!-- Cabeçalho de Navegação -->
         <div class="flex flex-col md:flex-row justify-between items-center gap-4">
             <div class="flex items-center gap-4">
                 <button onclick="window.history.back()" class="bg-slate-800 hover:bg-slate-700 p-2 rounded-lg transition-all shadow-lg border border-slate-700/50">
@@ -62,15 +61,13 @@
                 </div>
             </div>
 
-            <!-- Legenda de Status -->
             <div class="grid grid-cols-3 gap-2 text-[9px] font-black uppercase">
-                <div class="px-3 py-2 bg-emerald-500/20 border border-emerald-500/40 rounded text-emerald-400 text-center">Concluída</div>
-                <div class="px-3 py-2 bg-amber-500/20 border border-amber-500/40 rounded text-amber-400 text-center">Em Rota</div>
-                <div class="px-3 py-2 bg-rose-500/20 border border-rose-500/40 rounded text-rose-400 text-center">Pendente</div>
+                <div class="px-3 py-2 bg-emerald-500/20 border border-emerald-500/40 rounded text-emerald-400 text-center">Finalizada</div>
+                <div class="px-3 py-2 bg-amber-500/20 border border-amber-500/40 rounded text-amber-400 text-center">Em Andamento</div>
+                <div class="px-3 py-2 bg-rose-500/20 border border-rose-500/40 rounded text-rose-400 text-center">Não Iniciada</div>
             </div>
         </div>
 
-        <!-- Tabela de Dados -->
         <div class="glass rounded-2xl overflow-hidden shadow-2xl border border-slate-800/60">
             <div class="overflow-x-auto">
                 <table class="w-full text-left border-collapse">
@@ -80,9 +77,9 @@
                             <th class="p-4">Saída</th>
                             <th class="p-4">Veículo</th>
                             <th class="p-4">Motorista Atribuído</th>
-                            <th class="p-4 text-center">Entregas</th>
-                            <th class="p-4 text-center">Restante</th>
-                            <th class="p-4 text-center">Sucesso</th>
+                            <th class="p-4 text-center">Total</th>
+                            <th class="p-4 text-center">Aberto</th>
+                            <th class="p-4 text-center">Realizado</th>
                         </tr>
                     </thead>
                     <tbody id="tabelaCorpo" class="divide-y divide-slate-800/50 font-mono text-[11px]">
@@ -147,62 +144,70 @@
                 const response = await fetch(`${API_BASE}/api/roteirizacao/itinerario/${numCar}`);
                 const xmlText = await response.text();
                 
-                // Lógica de Processamento Seguro portado do Script original
+                // LÓGICA PORTADA DO SCRIPT ORIGINAL (processarXMLSeguro)
+                // 1. Limpar ocorrências
                 const xmlLimpo = xmlText.replace(/<[^>]*listaOcorrencias[^>]*>[\s\S]*?<\/[^>]*listaOcorrencias>/gi, "");
-                const xmlDoc = new DOMParser().parseFromString(xmlLimpo, "text/xml");
-                const statusTags = xmlDoc.getElementsByTagName("status");
-
-                let total = statusTags.length;
+                
+                // 2. Extrair todos os conteúdos de tags <status> via Regex (mais seguro que DOMParser para SOAP)
+                const regexStatus = /<[^>]*status[^>]*>(.*?)<\/[^>]*status>/gi;
+                let matches;
+                let totalCarga = 0;
                 let aberto = 0;
 
-                if (total > 0) {
-                    Array.from(statusTags).forEach(tag => {
-                        if (tag.textContent.trim().toUpperCase() === "ABERTO") {
-                            aberto++;
-                        }
-                    });
-                } else {
-                    total = totalDb;
+                while ((matches = regexStatus.exec(xmlLimpo)) !== null) {
+                    const statusValor = matches[1].trim().toUpperCase();
+                    totalCarga++;
+                    if (statusValor === "ABERTO") {
+                        aberto++;
+                    }
+                }
+
+                // Se o XML veio vazio, usamos o total do banco e marcamos tudo como aberto
+                if (totalCarga === 0) {
+                    totalCarga = totalDb;
                     aberto = totalDb;
                 }
 
-                const realizado = Math.max(0, total - aberto);
+                const realizado = Math.max(0, totalCarga - aberto);
                 
+                // Atualização dos elementos da página
                 const elTotal = document.getElementById(`total-${numCar}`);
                 const elAberto = document.getElementById(`aberto-${numCar}`);
                 const elRealizado = document.getElementById(`realizado-${numCar}`);
                 const linha = document.getElementById(`linha-${numCar}`);
 
-                if (elTotal) elTotal.innerText = total;
+                if (elTotal) elTotal.innerText = totalCarga;
+                
                 if (elRealizado) {
                     elRealizado.innerText = realizado;
                     elRealizado.classList.remove('loading-pulse', 'text-slate-500');
                     elRealizado.classList.add('text-emerald-500');
                 }
+                
                 if (elAberto) {
                     elAberto.innerText = aberto;
                     elAberto.classList.remove('loading-pulse', 'text-slate-500');
                     elAberto.classList.add('text-amber-500');
                 }
 
-                if (linha) {
+                // LÓGICA DE PINTURA (DE ACORDO COM O SCRIPT)
+                if (linha && totalCarga > 0) {
                     linha.classList.remove('status-finalizada', 'status-andamento', 'status-nao-iniciada');
 
-                    if (total > 0) {
-                        if (realizado === total) {
-                            // 100% Concluída
-                            linha.classList.add('status-finalizada');
-                        } else if (realizado > 0) {
-                            // Em rota / parcial
-                            linha.classList.add('status-andamento');
-                        } else {
-                            // Pendente / Não iniciada
-                            linha.classList.add('status-nao-iniciada');
-                        }
+                    if (aberto === 0) {
+                        // Todos realizados
+                        linha.classList.add('status-finalizada');
+                    } else if (realizado > 0) {
+                        // Existe saldo realizado mas ainda tem aberto
+                        linha.classList.add('status-andamento');
+                    } else {
+                        // Realizado = 0 e Total em Aberto
+                        linha.classList.add('status-nao-iniciada');
                     }
                 }
 
             } catch (e) {
+                console.error("Erro ao processar carga " + numCar, e);
                 const elAberto = document.getElementById(`aberto-${numCar}`);
                 if (elAberto) {
                     elAberto.innerText = totalDb;

@@ -2,31 +2,31 @@ server:
   port: 8080
 
 spring:
+
+  config:
+    import: "optional:file:.env[.properties]"
+
   datasource:
-    # Dados do servidor de banco de dados Oracle WinThor
-    url: ${DB_URL:jdbc:oracle:thin:@192.168.10.132:1521:WINT}
-    username: ${DB_USER:COMPREFACIL}
-    password: ${DB_PASS:COMP14WINT22}
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASS}
     driver-class-name: oracle.jdbc.OracleDriver
   jpa:
     database-platform: org.hibernate.dialect.OracleDialect
     hibernate:
       ddl-auto: none
-    show-sql: true
+    show-sql: false 
     properties:
       hibernate.format_sql: true
 
-# Configurações específicas da API Concept e Automação
 concept:
   api:
-    cnpj: ${CONCEPT_CNPJ:05.955.701/0001-06}
-    senhaCliente: ${CONCEPT_SENHA_CLIENTE:35bb1a5edbb7764fe892a94a3ddf89308a84e05d1262030c5c3556b3}
-    senhaCentral: ${CONCEPT_SENHA_CENTRAL:c0939390dafe35214cffda8774aeb91b0135639ae71d06887a9357d9}
+    cnpj: ${CONCEPT_CNPJ}
+    senhaCliente: ${CONCEPT_SENHA_CLIENTE}
+    senhaCentral: ${CONCEPT_SENHA_CENTRAL}
     endpoints:
       automatizador: "http://52.6.27.50:8181/automatizador"
       importador: "http://52.6.27.50:8181/importadorPedidos"
   
-  # Configuração do Robô de Automação
   automation:
-    # Intervalo de execução (60000ms = 1 minuto)
-    interval: 60000
+    interval: ${CONCEPT_AUTOMATION_INTERVAL:60000}
