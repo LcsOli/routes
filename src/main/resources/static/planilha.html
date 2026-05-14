@@ -21,7 +21,7 @@
             border: 1px solid rgba(255, 255, 255, 0.05);
         }
 
-        /* Cores de status corrigidas conforme script original */
+        /* Cores de status */
         .status-finalizada { 
             border-left: 4px solid #10b981 !important; 
             background: rgba(16, 185, 129, 0.08) !important; 
@@ -38,7 +38,8 @@
         .loading-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
 
-        input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); opacity: 0.5; }
+        input[type="date"], select { filter: invert(1); opacity: 0.8; }
+        select option { background-color: #1e293b; color: white; filter: invert(0); }
     </style>
 </head>
 <body class="min-h-screen p-4 lg:p-8" onload="inicializarPlanilha()">
@@ -54,9 +55,25 @@
                 </button>
                 <div>
                     <h1 class="text-2xl font-black text-white tracking-tight uppercase leading-tight">Painel de Escala</h1>
-                    <div class="flex flex-col mt-1">
-                        <label class="text-[8px] text-slate-500 font-black uppercase tracking-widest">Filtro por Data de Saída</label>
-                        <input type="date" id="filtroData" onchange="carregarDados()" class="bg-transparent text-emerald-400 font-bold text-xs focus:outline-none cursor-pointer">
+                    <div class="flex flex-col md:flex-row gap-6 mt-2">
+                        <div class="flex flex-col">
+                            <label class="text-[8px] text-slate-500 font-black uppercase tracking-widest">Data de Saída</label>
+                            <input type="date" id="filtroData" onchange="carregarDados()" class="bg-transparent text-emerald-400 font-bold text-xs focus:outline-none cursor-pointer border-b border-slate-700 pb-1">
+                        </div>
+                        
+                        <div class="flex flex-col">
+                            <label class="text-[8px] text-slate-500 font-black uppercase tracking-widest">Origem da Carga</label>
+                            <select id="filtroOrigem" onchange="aplicarFiltroOrigem()" class="bg-transparent text-emerald-400 font-bold text-xs focus:outline-none cursor-pointer border-b border-slate-700 pb-1">
+                                <option value="TODOS">Todas as Origens</option>
+                                <option value="CD SUMARE">CD Sumaré</option>
+                                <option value="CD PRAIA GRANDE">CD Praia Grande</option>
+                                <option value="CD GUARULHOS">CD Guarulhos</option>
+                                <option value="CD SOROCABA">CD Sorocaba</option>
+                                <option value="CD JACAREI">CD Jacareí</option>
+                                <option value="CD ITAPETININGA">CD Itapetininga</option>
+                                <option value="SAO JOSE DO RIO PRETO">São José do Rio Preto</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -74,7 +91,7 @@
                     <thead>
                         <tr class="bg-slate-900/80 text-slate-500 text-[10px] font-black uppercase tracking-widest border-b border-slate-800">
                             <th class="p-4">N° Carga</th>
-                            <th class="p-4">Saída</th>
+                            <th class="p-4">Origem</th> <th class="p-4">Saída</th>
                             <th class="p-4">Veículo</th>
                             <th class="p-4">Motorista Atribuído</th>
                             <th class="p-4 text-center">Total</th>
@@ -83,8 +100,7 @@
                         </tr>
                     </thead>
                     <tbody id="tabelaCorpo" class="divide-y divide-slate-800/50 font-mono text-[11px]">
-                        <!-- Inserção via JS -->
-                    </tbody>
+                        </tbody>
                 </table>
             </div>
         </div>
@@ -102,7 +118,7 @@
             const corpo = document.getElementById('tabelaCorpo');
             const dataFiltro = document.getElementById('filtroData').value;
             
-            corpo.innerHTML = '<tr><td colspan="7" class="p-20 text-center text-slate-500 uppercase font-black text-[10px] tracking-[0.3em] animate-pulse">Sincronizando com Oracle...</td></tr>';
+            corpo.innerHTML = '<tr><td colspan="8" class="p-20 text-center text-slate-500 uppercase font-black text-[10px] tracking-[0.3em] animate-pulse">Sincronizando com Oracle...</td></tr>';
 
             try {
                 const response = await fetch(`${API_BASE}/api/roteirizacao/painel-geral?data=${dataFiltro}`);
@@ -111,17 +127,20 @@
                 corpo.innerHTML = '';
                 
                 if (cargas.length === 0) {
-                    corpo.innerHTML = '<tr><td colspan="7" class="p-20 text-center text-slate-500 italic text-xs">Nenhuma carga para esta data.</td></tr>';
+                    corpo.innerHTML = '<tr><td colspan="8" class="p-20 text-center text-slate-500 italic text-xs">Nenhuma carga para esta data.</td></tr>';
                     return;
                 }
 
                 cargas.forEach(rota => {
                     const tr = document.createElement('tr');
                     tr.id = `linha-${rota.numCar}`;
+                    // Adiciona o atributo data-origem para ser lido pelo filtro
+                    tr.setAttribute('data-origem', rota.origem || 'SAO JOSE DO RIO PRETO');
                     tr.className = "hover:bg-slate-800/20 transition-colors";
                     
                     tr.innerHTML = `
                         <td class="p-4 font-bold text-white">${rota.numCar}</td>
+                        <td class="p-4 text-indigo-400/80 font-bold uppercase text-[9px]">${rota.origem || 'SÃO JOSÉ DO RIO PRETO'}</td>
                         <td class="p-4 text-slate-400">${rota.dataSaida}</td>
                         <td class="p-4 text-emerald-400 font-bold">${rota.placa}</td>
                         <td class="p-4 text-slate-300 font-sans font-semibold uppercase">${rota.motorista}</td>
@@ -134,9 +153,27 @@
                     processarStatusConcept(rota.numCar, rota.totalEntregas);
                 });
 
+                // Aplica o filtro imediatamente caso já exista um CD selecionado e o usuário mude apenas a data
+                aplicarFiltroOrigem();
+
             } catch (e) {
-                corpo.innerHTML = '<tr><td colspan="7" class="p-20 text-center text-red-500 font-black uppercase text-xs">Erro de Conexão</td></tr>';
+                corpo.innerHTML = '<tr><td colspan="8" class="p-20 text-center text-red-500 font-black uppercase text-xs">Erro de Conexão</td></tr>';
             }
+        }
+
+        // Função que controla a visibilidade das linhas baseado no select
+        function aplicarFiltroOrigem() {
+            const filtro = document.getElementById('filtroOrigem').value;
+            const linhas = document.querySelectorAll('#tabelaCorpo tr[id^="linha-"]');
+            
+            linhas.forEach(linha => {
+                const origemDaLinha = linha.getAttribute('data-origem');
+                if (filtro === 'TODOS' || origemDaLinha === filtro) {
+                    linha.style.display = ''; // Exibe
+                } else {
+                    linha.style.display = 'none'; // Oculta
+                }
+            });
         }
 
         async function processarStatusConcept(numCar, totalDb) {
@@ -144,11 +181,8 @@
                 const response = await fetch(`${API_BASE}/api/roteirizacao/itinerario/${numCar}`);
                 const xmlText = await response.text();
                 
-                // LÓGICA PORTADA DO SCRIPT ORIGINAL (processarXMLSeguro)
-                // 1. Limpar ocorrências
                 const xmlLimpo = xmlText.replace(/<[^>]*listaOcorrencias[^>]*>[\s\S]*?<\/[^>]*listaOcorrencias>/gi, "");
                 
-                // 2. Extrair todos os conteúdos de tags <status> via Regex (mais seguro que DOMParser para SOAP)
                 const regexStatus = /<[^>]*status[^>]*>(.*?)<\/[^>]*status>/gi;
                 let matches;
                 let totalCarga = 0;
@@ -162,7 +196,6 @@
                     }
                 }
 
-                // Se o XML veio vazio, usamos o total do banco e marcamos tudo como aberto
                 if (totalCarga === 0) {
                     totalCarga = totalDb;
                     aberto = totalDb;
@@ -170,7 +203,6 @@
 
                 const realizado = Math.max(0, totalCarga - aberto);
                 
-                // Atualização dos elementos da página
                 const elTotal = document.getElementById(`total-${numCar}`);
                 const elAberto = document.getElementById(`aberto-${numCar}`);
                 const elRealizado = document.getElementById(`realizado-${numCar}`);
@@ -190,18 +222,14 @@
                     elAberto.classList.add('text-amber-500');
                 }
 
-                // LÓGICA DE PINTURA (DE ACORDO COM O SCRIPT)
                 if (linha && totalCarga > 0) {
                     linha.classList.remove('status-finalizada', 'status-andamento', 'status-nao-iniciada');
 
                     if (aberto === 0) {
-                        // Todos realizados
                         linha.classList.add('status-finalizada');
                     } else if (realizado > 0) {
-                        // Existe saldo realizado mas ainda tem aberto
                         linha.classList.add('status-andamento');
                     } else {
-                        // Realizado = 0 e Total em Aberto
                         linha.classList.add('status-nao-iniciada');
                     }
                 }
