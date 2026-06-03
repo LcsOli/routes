@@ -5,14 +5,18 @@ import com.CF.routes.infrastructure.config.ConceptConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.*;
+import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.http.converter.StringHttpMessageConverter;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.ResponseErrorHandler;
 import org.springframework.web.client.RestTemplate;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.time.OffsetDateTime;
-import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Slf4j
 @Service
@@ -43,7 +47,6 @@ public class ConceptSoapClient {
             </soapenv:Envelope>
             """.formatted(NS_FACHADA, numCar, config.getCnpj(), config.getSenhaCliente(), config.getSenhaCentral());
         
-        // URL específica identificada em testes onde o método responde corretamente
         String urlCorreta = "http://52.6.27.50:8181/importadorPedidos";
         
         return enviarRequestComRetorno(urlCorreta, xml, "listarItinerariosCarregamento");
@@ -87,7 +90,7 @@ public class ConceptSoapClient {
     }
 
     /**
-     * Sincronização: Cadastra Loja com coordenadas de geofence.
+     * Sincronização: Cadastra Filial/Loja de Origem com coordenadas de geofence.
      */
     public void cadastrarLoja(String codigo, String nome) {
         String lat = "-20.797732132339135";
@@ -157,11 +160,12 @@ public class ConceptSoapClient {
     /**
      * Roteirização: Disparo final do algoritmo da Concept.
      */
-    public void roteirizarPedidos(Long numCar, String placa, String motorista) {
-        String dataIso = OffsetDateTime.now().withHour(0).withMinute(0).withSecond(0).withNano(0).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
-        
-        String xml = """
-            <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:fac="%s">
+    public void roteirizarPedidos(Long numCar, String placa, String motoristaNome) {
+        String dataHoje = java.time.LocalDate.now().toString();
+
+        String xmlCompleto = """
+            <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:fac="http://fachada.concept/">
+               <soapenv:Header/>
                <soapenv:Body>
                   <fac:roteirizarPedidos>
                      <arg0>0</arg0>
@@ -171,19 +175,37 @@ public class ConceptSoapClient {
                      <arg4>%s</arg4>
                      <arg5>%s</arg5>
                      <arg6>%s</arg6>
-                     <arg7>TRUE</arg7>
+                     <arg7>false</arg7>
                      <arg8>%s</arg8>
                      <arg9>%s</arg9>
                      <arg10>%s</arg10>
                   </fac:roteirizarPedidos>
                </soapenv:Body>
             </soapenv:Envelope>
-            """.formatted(NS_FACHADA, numCar, dataIso, placa, motorista, config.getCnpj(), config.getSenhaCliente(), config.getSenhaCentral());
-        enviarRequest(config.getEndpoints().getAutomatizador(), xml, "roteirizarPedidos");
+            """.formatted(
+                numCar,
+                dataHoje,
+                placa,
+                motoristaNome,
+                config.getCnpj(),
+                config.getSenhaCliente(),
+                config.getSenhaCentral()
+            );
+
+        log.info("Enviando requisição de roteirização para o carregamento: {}", numCar);
+        enviarRequestSoap(xmlCompleCompleto(xmlCompleto), config.getEndpoints().getAutomatizador());
+    }
+
+    private String xmlCompleCompleto(String xml) {
+        return xml; // Auxiliar simples de legibilidade
     }
 
     private void enviarRequest(String url, String xmlBody, String operacao) {
         enviarRequestComRetorno(url, xmlBody, operacao);
+    }
+
+    private void enviarRequestSoap(String xmlBody, String url) {
+        enviarRequestComRetorno(url, xmlBody, "roteirizarPedidos");
     }
 
     private String enviarRequestComRetorno(String url, String xmlBody, String operacao) {
@@ -195,6 +217,18 @@ public class ConceptSoapClient {
         
         RestTemplate rt = new RestTemplate(factory);
         rt.getMessageConverters().add(0, new StringHttpMessageConverter(StandardCharsets.UTF_8));
+        
+        rt.setErrorHandler(new ResponseErrorHandler() {
+            @Override
+            public boolean hasError(ClientHttpResponse response) throws IOException {
+                return false; 
+            }
+
+            @Override
+            public void handleError(ClientHttpResponse response) throws IOException {
+                // Prevenido lançamento automático do Spring para validação manual abaixo
+            }
+        });
         
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.valueOf("text/xml;charset=UTF-8"));
@@ -208,11 +242,153 @@ public class ConceptSoapClient {
             String body = response.getBody();
             long duration = System.currentTimeMillis() - start;
             
-            log.info("[SOAP] Resposta de '{}' recebida em {}ms.", operacao, duration);
+            log.info("[SOAP] Resposta de '{}' recebida em {}ms (Status: {}).", operacao, duration, response.getStatusCode().value());
+            log.info("[SOAP] Payload literal da resposta de '{}': \n{}", operacao, body);
+            
+            if (body == null) {
+                throw new RuntimeException("Resposta da Concept retornou corpo vazio (null).");
+            }
+
+            // 1. Validação de Fault estrutural do barramento SOAP (ex: erros 500 do servidor)
+            if (body.contains("Fault") || body.contains("faultcode")) {
+                log.error("[SOAP] A API retornou uma falha estrutural (SOAP Fault): {}", body);
+                throw new RuntimeException("Falha estrutural retornada pela Concept.");
+            }
+            
+            // 2. Validação cirúrgica de sucesso da regra de negócio interna da Concept
+            validarSucessoNegocio(body, operacao);
+            
             return body;
+        } catch (RuntimeException e) {
+            log.error("[SOAP] Falha de validação ou regra de negócio na operação {}: {}", operacao, e.getMessage());
+            throw e;
         } catch (Exception e) {
-            log.error("[SOAP] Falha na operação {}: {}", operacao, e.getMessage());
-            throw new RuntimeException("Erro Concept API: " + e.getMessage());
+            log.error("[SOAP] Falha fatal de infraestrutura na operação {}: {}", operacao, e.getMessage());
+            throw new RuntimeException("Erro de comunicação com Concept API: " + e.getMessage());
         }
+    }
+
+    /**
+     * Utiliza Regex otimizada (Java 21) para avaliar se a regra de negócio da Concept retornou falso.
+     */
+    private void validarSucessoNegocio(String xml, String operacao) {
+        Pattern sucessoPattern = Pattern.compile("<comSucesso>(.*?)</comSucesso>");
+        Matcher sucessoMatcher = sucessoPattern.matcher(xml);
+        
+        if (sucessoMatcher.find()) {
+            String comSucessoValor = sucessoMatcher.group(1).trim();
+            
+            if ("false".equalsIgnoreCase(comSucessoValor)) {
+                Pattern mensagemPattern = Pattern.compile("<mensagem>(.*?)</mensagem>");
+                Matcher mensagemMatcher = mensagemPattern.matcher(xml);
+                String mensagemErro = "Motivo não explicitado no XML de retorno.";
+                
+                if (mensagemMatcher.find()) {
+                    mensagemErro = mensagemMatcher.group(1).trim();
+                }
+                
+                throw new RuntimeException("A operação '" + operacao + "' falhou na regra de negócio. Mensagem: " + mensagemErro);
+            }
+        }
+    }
+
+    /**
+     * WORKFLOW STATUS 1: Altera o status de Finalizado para Liberado para Separação.
+     */
+    public void alterarStatusFinalizadoParaLiberadoSeparacao(List<String> numerosPedidos) {
+        StringBuilder sb = new StringBuilder();
+        for (String numPed : numerosPedidos) {
+            sb.append("<arg0><numeroPedido>").append(numPed).append("</numeroPedido></arg0>");
+        }
+
+        String xml = """
+            <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:fac="%s">
+               <soapenv:Header/>
+               <soapenv:Body>
+                  <fac:alterarStatusVendaFinalizadoParaLiberadoSeparacao>
+                     %s
+                     <arg1>%s</arg1><arg2>%s</arg2><arg3>%s</arg3>
+                  </fac:alterarStatusVendaFinalizadoParaLiberadoSeparacao>
+               </soapenv:Body>
+            </soapenv:Envelope>
+            """.formatted(NS_FACHADA, sb.toString(), config.getCnpj(), config.getSenhaCliente(), config.getSenhaCentral());
+
+        enviarRequest(config.getEndpoints().getAutomatizador(), xml, "Status Finalizado -> LiberadoSep");
+    }
+
+    /**
+     * WORKFLOW STATUS 2: Altera o status de Liberado para Separação para Em Separação.
+     */
+    public void alterarStatusLiberadoSeparacaoParaEmSeparacao(List<String> numerosPedidos) {
+        StringBuilder sb = new StringBuilder();
+        for (String numPed : numerosPedidos) {
+            sb.append("<arg0><numeroPedido>").append(numPed).append("</numeroPedido></arg0>");
+        }
+
+        String dataHoraConcept = java.time.LocalDateTime.now()
+                .format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
+
+        String xml = """
+            <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:fac="%s">
+               <soapenv:Header/>
+               <soapenv:Body>
+                  <fac:alterarStatusLiberadoSeparacaParaEmSeparacao>
+                     %s
+                     <arg1>%s</arg1>
+                     <arg2>%s</arg2><arg3>%s</arg3><arg4>%s</arg4>
+                  </fac:alterarStatusLiberadoSeparacaParaEmSeparacao>
+               </soapenv:Body>
+            </soapenv:Envelope>
+            """.formatted(NS_FACHADA, sb.toString(), dataHoraConcept, config.getCnpj(), config.getSenhaCliente(), config.getSenhaCentral());
+
+        enviarRequest(config.getEndpoints().getAutomatizador(), xml, "Status LiberadoSep -> EmSep");
+    }
+
+    /**
+     * WORKFLOW STATUS 3: Altera o status de Em Separação para Separados.
+     */
+    public void alterarStatusEmSeparacaoParaSeparados(List<String> numerosPedidos) {
+        StringBuilder sb = new StringBuilder();
+        for (String numPed : numerosPedidos) {
+            sb.append("<arg0><numeroPedido>").append(numPed).append("</numeroPedido></arg0>");
+        }
+
+        String xml = """
+            <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:fac="%s">
+               <soapenv:Header/>
+               <soapenv:Body>
+                  <fac:alterarStatusEmSeparacaoParaSeparados>
+                     %s
+                     <arg1>%s</arg1><arg2>%s</arg2><arg3>%s</arg3>
+                  </fac:alterarStatusEmSeparacaoParaSeparados>
+               </soapenv:Body>
+            </soapenv:Envelope>
+            """.formatted(NS_FACHADA, sb.toString(), config.getCnpj(), config.getSenhaCliente(), config.getSenhaCentral());
+
+        enviarRequest(config.getEndpoints().getAutomatizador(), xml, "Status EmSep -> Separados");
+    }
+
+    /**
+     * WORKFLOW STATUS 4: Altera o status de Separados para Liberados para Roteirização.
+     */
+    public void alterarStatusSeparadosParaLiberadosRoteirizacao(List<String> numerosPedidos) {
+        StringBuilder sb = new StringBuilder();
+        for (String numPed : numerosPedidos) {
+            sb.append("<arg0><numeroPedido>").append(numPed).append("</numeroPedido></arg0>");
+        }
+
+        String xml = """
+            <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:fac="%s">
+               <soapenv:Header/>
+               <soapenv:Body>
+                  <fac:alterarStatusSeparadosParaLiberadosRoteirizacao>
+                     %s
+                     <arg1>%s</arg1><arg2>%s</arg2><arg3>%s</arg3>
+                  </fac:alterarStatusSeparadosParaLiberadosRoteirizacao>
+               </soapenv:Body>
+            </soapenv:Envelope>
+            """.formatted(NS_FACHADA, sb.toString(), config.getCnpj(), config.getSenhaCliente(), config.getSenhaCentral());
+
+        enviarRequest(config.getEndpoints().getAutomatizador(), xml, "Status Separados -> LiberadoRot");
     }
 }
