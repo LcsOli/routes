@@ -78,6 +78,7 @@ public class PedidoRepository {
             return List.of();
         }
     }
+
     /**
      * Fila: Busca carregamentos marcados para envio que ainda não foram processados pelo robô.
      * Restrição aplicada (ROWNUM <= 2) para evitar timeout por excesso de requisições simultâneas.
@@ -180,11 +181,21 @@ public class PedidoRepository {
     }
 
     /**
-     * Atualiza o carregamento indicando que já foi enviado para a API.
+     * Atualiza o carregamento indicando que já foi enviado com sucesso para a API.
      */
     @Transactional
     public void marcarComoImportado(Long numcar) {
         String sql = "UPDATE PCCARREG SET IMPORTADOAPI = 'S', DATAIMPORTADOAPI = SYSDATE WHERE NUMCAR = ?";
+        entityManager.createNativeQuery(sql).setParameter(1, numcar).executeUpdate();
+    }
+
+    /**
+     * Modificação da Regra de negócio: Se a integração falhar, remove as flags do fluxo de envio.
+     * Atualiza IMPORTADOAPI = 'N' e ENVIAAPI = 'N' para interromper o loop de erros no robô.
+     */
+    @Transactional
+    public void marcarFalhaIntegracao(Long numcar) {
+        String sql = "UPDATE PCCARREG SET IMPORTADOAPI = 'N', ENVIAAPI = 'N' WHERE NUMCAR = ?";
         entityManager.createNativeQuery(sql).setParameter(1, numcar).executeUpdate();
     }
 

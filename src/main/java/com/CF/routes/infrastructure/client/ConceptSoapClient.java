@@ -28,10 +28,6 @@ public class ConceptSoapClient {
 
     private static final String NS_FACHADA = "http://fachada.concept/";
 
-    /**
-     * Dashboard: Lista o itinerário detalhado de um carregamento.
-     * Obs: Redirecionado para o endpoint do importador conforme testes funcionais realizados.
-     */
     public String listarItinerariosCarregamento(Long numCar) {
         String xml = """
             <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:fac="%s">
@@ -52,9 +48,6 @@ public class ConceptSoapClient {
         return enviarRequestComRetorno(urlCorreta, xml, "listarItinerariosCarregamento");
     }
 
-    /**
-     * Consulta a lista de viagens ativas para o painel de monitoramento.
-     */
     public String listarViagens() {
         String xml = """
             <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:fac="%s">
@@ -72,9 +65,6 @@ public class ConceptSoapClient {
         return enviarRequestComRetorno(config.getEndpoints().getAutomatizador(), xml, "listarViagens");
     }
 
-    /**
-     * Sincronização: Cadastra Zona/Praça antes da importação.
-     */
     public void cadastrarZona(String codigo, String nome) {
         String xml = """
             <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:fac="%s">
@@ -89,9 +79,6 @@ public class ConceptSoapClient {
         enviarRequest(config.getEndpoints().getAutomatizador(), xml, "cadastrarZona");
     }
 
-    /**
-     * Sincronização: Cadastra Filial/Loja de Origem com coordenadas de geofence.
-     */
     public void cadastrarLoja(String codigo, String nome) {
         String lat = "-20.797732132339135";
         String lng = "-49.32830021380005";
@@ -116,9 +103,6 @@ public class ConceptSoapClient {
         enviarRequest(config.getEndpoints().getAutomatizador(), xml, "cadastrarLoja");
     }
 
-    /**
-     * Sincronização: Cadastra o motorista garantindo a máscara de CPF.
-     */
     public void cadastrarMotorista(String matricula, String nome, String cpf) {
         String xml = """
             <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:fac="%s">
@@ -138,9 +122,6 @@ public class ConceptSoapClient {
         enviarRequest(config.getEndpoints().getAutomatizador(), xml, "cadastrarMotorista");
     }
 
-    /**
-     * Importação: Envio do lote massivo de pedidos concatenados.
-     */
     public void importarPedidos(String blocosArg0Xml) {
         String xml = """
             <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:fac="%s">
@@ -157,9 +138,6 @@ public class ConceptSoapClient {
         enviarRequest(config.getEndpoints().getImportador(), xml, "importarPedidos");
     }
 
-    /**
-     * Roteirização: Disparo final do algoritmo da Concept.
-     */
     public void roteirizarPedidos(Long numCar, String placa, String motoristaNome) {
         String dataHoje = java.time.LocalDate.now().toString();
 
@@ -260,17 +238,14 @@ public class ConceptSoapClient {
             
             return body;
         } catch (RuntimeException e) {
-            log.error("[SOAP] Falha de validação ou regra de negócio na operação {}: {}", operacao, e.getMessage());
+            log.error("[SOAP] Falha de validação ou regra de negócio na operacao {}: {}", operacao, e.getMessage());
             throw e;
         } catch (Exception e) {
-            log.error("[SOAP] Falha fatal de infraestrutura na operação {}: {}", operacao, e.getMessage());
-            throw new RuntimeException("Erro de comunicação com Concept API: " + e.getMessage());
+            log.error("[SOAP] Falha fatal de infraestrutura na operacao {}: {}", operacao, e.getMessage());
+            throw new RuntimeException("Erro de comunicacao com Concept API: " + e.getMessage());
         }
     }
 
-    /**
-     * Utiliza Regex otimizada (Java 21) para avaliar se a regra de negócio da Concept retornou falso.
-     */
     private void validarSucessoNegocio(String xml, String operacao) {
         Pattern sucessoPattern = Pattern.compile("<comSucesso>(.*?)</comSucesso>");
         Matcher sucessoMatcher = sucessoPattern.matcher(xml);
@@ -278,23 +253,26 @@ public class ConceptSoapClient {
         if (sucessoMatcher.find()) {
             String comSucessoValor = sucessoMatcher.group(1).trim();
             
-            if ("false".equalsIgnoreCase(comSucessoValor)) {
-                Pattern mensagemPattern = Pattern.compile("<mensagem>(.*?)</mensagem>");
-                Matcher mensagemMatcher = mensagemPattern.matcher(xml);
-                String mensagemErro = "Motivo não explicitado no XML de retorno.";
-                
-                if (mensagemMatcher.find()) {
-                    mensagemErro = mensagemMatcher.group(1).trim();
-                }
-                
-                throw new RuntimeException("A operação '" + operacao + "' falhou na regra de negócio. Mensagem: " + mensagemErro);
-            }
+if ("false".equalsIgnoreCase(comSucessoValor)) {
+    Pattern mensagemPattern = Pattern.compile("<mensagem>(.*?)</mensagem>");
+    Matcher mensagemMatcher = mensagemPattern.matcher(xml);
+    String mensagemErro = "Motivo não explicitado no XML de retorno.";
+    
+    if (mensagemMatcher.find()) {
+        mensagemErro = mensagemMatcher.group(1).trim();
+    }
+    
+    // Tratamento cirúrgico: se o erro for APENAS que o pedido já existe, não quebra o fluxo
+    if (mensagemErro.contains("ja cadastrado") || mensagemErro.contains("já cadastrado")) {
+        log.warn("[SOAP] Aviso de duplicidade ignorado (o pedido já existe na Concept): {}", mensagemErro);
+        return; // Retorna sem lançar Exception, permitindo o avanço do fluxo
+    }
+    
+    throw new RuntimeException("A operacao '" + operacao + "' falhou na regra de negócio. Mensagem: " + mensagemErro);
+}
         }
     }
 
-    /**
-     * WORKFLOW STATUS 1: Altera o status de Finalizado para Liberado para Separação.
-     */
     public void alterarStatusFinalizadoParaLiberadoSeparacao(List<String> numerosPedidos) {
         StringBuilder sb = new StringBuilder();
         for (String numPed : numerosPedidos) {
@@ -316,9 +294,6 @@ public class ConceptSoapClient {
         enviarRequest(config.getEndpoints().getAutomatizador(), xml, "Status Finalizado -> LiberadoSep");
     }
 
-    /**
-     * WORKFLOW STATUS 2: Altera o status de Liberado para Separação para Em Separação.
-     */
     public void alterarStatusLiberadoSeparacaoParaEmSeparacao(List<String> numerosPedidos) {
         StringBuilder sb = new StringBuilder();
         for (String numPed : numerosPedidos) {

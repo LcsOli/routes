@@ -1,72 +1,40 @@
 package com.CF.routes.infrastructure.controller;
 
 import com.CF.routes.application.usecase.RoteirizacaoUseCase;
-import com.CF.routes.infrastructure.client.ConceptSoapClient;
-import com.CF.routes.infrastructure.repository.PedidoRepository;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
 import java.util.List;
-import java.util.Map;
 
-/**
- * Engenheiro Sénior: Controller Otimizado para Alta Performance.
- * Implementa a estratégia "Monitor-then-Poll" para evitar travamentos de I/O bloqueante.
- */
-@Slf4j
 @RestController
-@RequestMapping("/api/roteirizacao")
-@RequiredArgsConstructor
-@CrossOrigin(origins = "*")
+@RequestMapping("/api/v1/roteirizacao")
 public class RoteirizacaoController {
 
-    private final RoteirizacaoUseCase useCase;
-    private final ConceptSoapClient soapClient;
-    private final PedidoRepository repository;
+    private final RoteirizacaoUseCase roteirizacaoUseCase;
 
-    /**
-     * Dashboard: Painel Geral (Carregamento Ultrarrápido).
-     * Retorna apenas os metadados do WinThor. O detalhamento do status (XML da Concept)
-     * é resolvido de forma assíncrona pelo Frontend batendo na rota /itinerario/{numCar}.
-     */
-    @GetMapping("/painel-geral")
-    public ResponseEntity<List<Map<String, Object>>> obterPainelGeral(@RequestParam(required = false) String data) {
-        log.info("[API] Consultando resumo de rotas no WinThor. Filtro de data: {}", data);
-        // O repositório já devolve a lista pronta e formatada
-        List<Map<String, Object>> rotasWinThor = repository.buscarResumoRotasAtivas(data);
-        return ResponseEntity.ok(rotasWinThor);
-    }
-
-    /**
-     * Dashboard: Detalhe técnico do Itinerário (Consumido assincronamente pelo Frontend).
-     * Devolve o XML bruto. O Frontend (escala.html) aplica a lógica processarXMLSeguro via JS.
-     */
-    @GetMapping("/itinerario/{numCar}")
-    public ResponseEntity<String> buscarItinerario(@PathVariable Long numCar) {
-        try {
-            return ResponseEntity.ok(soapClient.listarItinerariosCarregamento(numCar));
-        } catch (Exception e) {
-            log.error("[API] Erro ao buscar itinerário da carga {}: {}", numCar, e.getMessage());
-            return ResponseEntity.internalServerError().body(e.getMessage());
-        }
+    public RoteirizacaoController(RoteirizacaoUseCase roteirizacaoUseCase) {
+        this.roteirizacaoUseCase = roteirizacaoUseCase;
     }
 
     @PostMapping("/processar-pendentes")
     public ResponseEntity<String> processarPendentes() {
-        try {
-            log.info("[API] Disparo manual de roteirização solicitado.");
-            useCase.processarPendentes();
-            return ResponseEntity.ok("Fila processada.");
-        } catch (Exception e) {
-            log.error("[API] Falha no processamento manual: {}", e.getMessage());
-            return ResponseEntity.internalServerError().body(e.getMessage());
-        }
+        roteirizacaoUseCase.processarPendentes();
+        
+        return ResponseEntity.ok("Processamento da fila de pendentes concluído. Verifique a tabela CF_LOG_ROTEIRIZACAO para checar rejeições.");
     }
 
-    @GetMapping("/status")
-    public ResponseEntity<String> status() {
-        return ResponseEntity.ok("Ativo.");
+    @PostMapping("/forcar-carregamentos")
+    public ResponseEntity<String> forcarCarregamentos(@RequestBody List<Long> carregamentos) {
+        if (carregamentos == null || carregamentos.isEmpty()) {
+            return ResponseEntity.badRequest().body("A lista de carregamentos não pode estar vazia.");
+        }
+
+        for (Long numcar : carregamentos) {
+            try {
+                roteirizacaoUseCase.executar(List.of(numcar));
+            } catch (Exception e) {
+            }
+        }
+
+        return ResponseEntity.ok("Processamento dos carregamentos específicos finalizado. Verifique os resultados no banco.");
     }
 }
