@@ -210,7 +210,7 @@ public class RoteirizacaoUseCase {
                 p.getHora(),
                 
                 valorStr,
-                enderecoEscapado,
+                clienteEscapado, 
                 p.getCodCli(),
                 
                 p.getCodLoja(), nomeLoja,
