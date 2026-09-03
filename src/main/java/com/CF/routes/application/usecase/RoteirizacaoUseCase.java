@@ -137,6 +137,9 @@ public class RoteirizacaoUseCase {
 
         String enderecoEscapado = mapper.escapeXml(p.getEndereco());
         String clienteEscapado = mapper.escapeXml(p.getNomeCliente());
+        
+        // Criando uma descrição amigável para aparecer no campo "Descrição" do painel
+        String descricaoPedido = "PEDIDO " + p.getNumPed() + " - " + clienteEscapado;
 
         // Coordenadas de Fallback (Padrão do seu CD caso o cliente não possua no banco)
         String latDefault = "-20.797732132339135";
@@ -210,7 +213,7 @@ public class RoteirizacaoUseCase {
                 p.getHora(),
                 
                 valorStr,
-                clienteEscapado, 
+                descricaoPedido, // Injeta na tag <descricao> do pedido
                 p.getCodCli(),
                 
                 p.getCodLoja(), nomeLoja,
@@ -221,11 +224,11 @@ public class RoteirizacaoUseCase {
                 
                 pesoStr, volStr,
                 
-                enderecoEscapado,
+                enderecoEscapado, // Injeta na tag <endereco> principal do pedido
                 
                 p.getCodCli(), 
-                clienteEscapado, 
-                enderecoEscapado,
+                clienteEscapado, // Injeta na tag <nome> do POI (O que aparece no Dropdown)
+                enderecoEscapado, // Injeta na tag <descricao> do POI (Rua que fica salva no ponto)
                 latCliente, 
                 lngCliente, 
                 

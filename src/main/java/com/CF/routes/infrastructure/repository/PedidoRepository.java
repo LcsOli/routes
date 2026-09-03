@@ -108,41 +108,48 @@ public class PedidoRepository {
      * Detalhe: Busca todos os dados necessários para o mapeamento SOAP do itinerário.
      */
     public List<PedidoDTO> buscarPedidosParaRoteirizacao(List<Long> carregamentos) {
-        if (carregamentos == null || carregamentos.isEmpty()) return List.of();
+    if (carregamentos == null || carregamentos.isEmpty()) return List.of();
 
-        String sql = """
-            SELECT
-                a.numped, a.data,
-                LPAD(a.hora, 2, '0') || ':' || LPAD(a.minuto, 2, '0') AS hora,
-                ROUND(a.vlatend, 2) AS valor_total,
-                b.cliente AS nome_cliente,
-                a.codcli,
-                (b.enderent || ', ' || b.bairroent || ', ' || b.municent || ', ' || b.estent || ', CEP ' || b.cepent) AS endereco,
-                b.codpraca AS cod_zona,
-                b.municcom AS nome_zona,
-                u.codusur AS cod_vendedor,
-                u.nome AS nome_vendedor,
-                c.codrotaprinc AS cod_loja,
-                CASE 
-                    WHEN c.codrotaprinc IN (98, 128, 172, 131, 174, 124, 140, 165, 170, 110, 232, 139, 96, 125, 204, 177, 122, 171, 135, 129, 161, 120, 112, 164, 180, 220, 130, 100, 101, 113, 107, 114, 159) THEN 'CD SUMARE'
-                    WHEN c.codrotaprinc IN (117, 210, 99, 104, 143, 147, 142, 168, 167, 221, 157) THEN 'CD PRAIA GRANDE'
-                    WHEN c.codrotaprinc IN (223, 169, 109, 173, 83, 152, 153, 102, 213, 214, 217, 219, 231, 91, 178, 97, 103, 134, 116, 181, 212, 225, 92, 155, 86, 149, 215, 211, 136, 95, 118, 119, 163, 179, 138, 200, 105, 106, 227, 228, 229, 230) THEN 'CD GUARULHOS'
-                    WHEN c.codrotaprinc IN (123, 93, 94, 108, 126, 121, 162, 222, 226, 201) THEN 'CD SOROCABA'
-                    WHEN c.codrotaprinc IN (205, 202, 137, 90, 115, 127, 144, 145, 158, 146, 150, 154, 175, 141, 176, 216, 218, 206, 156, 166, 80, 81, 82, 84, 85) THEN 'CD JACAREI'
-                    WHEN c.codrotaprinc IN (133, 209, 88, 89, 87, 111, 151, 160, 207, 148, 208, 132, 203) THEN 'CD ITAPETININGA'
-                    ELSE 'SAO JOSE DO RIO PRETO'
-                END AS nome_loja,
-                a.totpeso, a.totvolume, a.numcar, a.numnota, v.placa, e.matricula, e.nome AS nome_motorista, e.cpf 
-            FROM pcpedc a 
-            JOIN pcclient b ON a.codcli = b.codcli 
-            JOIN pccarreg c ON a.numcar = c.numcar 
-            JOIN pcusuari u ON a.codusur = u.codusur 
-            LEFT JOIN pcveicul v ON c.codveiculo = v.codveiculo
-            LEFT JOIN pcempr e ON c.codmotorista = e.matricula 
-            WHERE a.numcar IN (:carregamentos)
-              AND a.dtfat IS NOT NULL
-              AND a.numnota > 0
-            """;
+    String sql = """
+        SELECT
+            a.numped, a.data,
+            LPAD(NVL(a.hora, 0), 2, '0') || ':' || LPAD(NVL(a.minuto, 0), 2, '0') AS hora,
+            ROUND(a.vlatend, 2) AS valor_total,
+            b.cliente AS nome_cliente,
+            a.codcli,
+            (b.enderent || ', ' || b.bairroent || ', ' || b.municent || ', ' || b.estent || ', CEP ' || b.cepent) AS endereco,
+            b.codpraca AS cod_zona,
+            NVL(p.praca, 'SEM NOME') AS nome_zona,
+            u.codusur AS cod_vendedor,
+            u.nome AS nome_vendedor,
+            c.codrotaprinc AS cod_loja,
+            CASE 
+                WHEN c.codrotaprinc IN (98, 128, 172, 131, 174, 124, 140, 165, 170, 110, 232, 139, 96, 125, 204, 177, 122, 171, 135, 129, 161, 120, 112, 164, 180, 220, 130, 100, 101, 113, 107, 114, 159) THEN 'CD SUMARE'
+                WHEN c.codrotaprinc IN (117, 210, 99, 104, 143, 147, 142, 168, 167, 221, 157) THEN 'CD PRAIA GRANDE'
+                WHEN c.codrotaprinc IN (223, 169, 109, 173, 83, 152, 153, 102, 213, 214, 217, 219, 231, 91, 178, 97, 103, 134, 116, 181, 212, 225, 92, 155, 86, 149, 215, 211, 136, 95, 118, 119, 163, 179, 138, 200, 105, 106, 227, 228, 229, 230) THEN 'CD GUARULHOS'
+                WHEN c.codrotaprinc IN (123, 93, 94, 108, 126, 121, 162, 222, 226, 201) THEN 'CD SOROCABA'
+                WHEN c.codrotaprinc IN (205, 202, 137, 90, 115, 127, 144, 145, 158, 146, 150, 154, 175, 141, 176, 216, 218, 206, 156, 166, 80, 81, 82, 84, 85) THEN 'CD JACAREI'
+                WHEN c.codrotaprinc IN (133, 209, 88, 89, 87, 111, 151, 160, 207, 148, 208, 132, 203) THEN 'CD ITAPETININGA'
+                ELSE 'SAO JOSE DO RIO PRETO'
+            END AS nome_loja,
+            a.totpeso, a.totvolume, a.numcar, a.numnota, v.placa, e.matricula, e.nome AS nome_motorista, e.cpf 
+        FROM pcpedc a 
+        JOIN pcclient b ON a.codcli = b.codcli 
+        LEFT JOIN pcpraca p ON b.codpraca = p.codpraca 
+        JOIN pccarreg c ON a.numcar = c.numcar 
+        JOIN pcusuari u ON a.codusur = u.codusur 
+        LEFT JOIN pcveicul v ON c.codveiculo = v.codveiculo
+        LEFT JOIN pcempr e ON c.codmotorista = e.matricula 
+        LEFT JOIN pccarreg c_ant ON a.numcaranterior = c_ant.numcar
+        WHERE a.numcar IN (:carregamentos)
+          AND a.dtfat IS NOT NULL
+          AND a.numnota > 0
+          AND (
+               NVL(a.numcaranterior, 0) = 0 
+               OR 
+               (NVL(c_ant.enviaapi, 'N') = 'N' AND NVL(c_ant.importadoapi, 'N') = 'N')
+              )
+        """;
 
         try {
             Query query = entityManager.createNativeQuery(sql);
@@ -153,7 +160,7 @@ public class PedidoRepository {
             return results.stream().map(row -> PedidoDTO.builder()
                     .numPed(row[0] != null ? String.valueOf(row[0]) : null)
                     .data(row[1] != null ? ((Timestamp) row[1]).toLocalDateTime().toLocalDate() : null)
-                    .hora(row[2] != null ? String.valueOf(row[2]) : "08:00")
+                    .hora(row[2] != null ? String.valueOf(row[2]) : "00:00") // Alterado aqui de "08:00" para "00:00" como fallback protetivo
                     .valorTotal(row[3] != null ? ((Number) row[3]).doubleValue() : 0.0)
                     .nomeCliente(row[4] != null ? String.valueOf(row[4]) : "")
                     .codCli(row[5] != null ? String.valueOf(row[5]) : null)
